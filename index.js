@@ -63,6 +63,21 @@ app.get("/users", async (req, res) => {
   res.send(result);
 });
 
+// update user role
+app.patch("/users/update-role/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedDoc = {
+    $set: {
+      role: req.body.role,
+    },
+  };
+  const result = await usersCollections.updateOne(
+    { _id: new ObjectId(id) },
+    updatedDoc,
+  );
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------ONLY TECHNICIAN CAN ACCESS----------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
