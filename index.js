@@ -98,6 +98,20 @@ app.patch("/services/availability/:id", async (req, res) => {
   res.send(result);
 });
 
+// update service
+app.put("/service/edit/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedData = req.body;
+  const updateDoc = {
+    $set: updatedData,
+  };
+  const result = await servicesCollections.updateOne(
+    { _id: new ObjectId(id) },
+    updateDoc,
+  );
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------port listening----------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
