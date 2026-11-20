@@ -1,7 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 // ---------------------------------------------------------define express app and port--------------------------------------------------
@@ -71,6 +71,30 @@ app.get("/users", async (req, res) => {
 app.post("/add-service", async (req, res) => {
   const service = req.body;
   const result = await servicesCollections.insertOne(service);
+  res.send(result);
+});
+
+// get services for each technician
+app.get("/services/technician/:email", async (req, res) => {
+  const { email } = req.params;
+  const result = await servicesCollections
+    .find({ technicianEmail: email })
+    .toArray();
+  res.send(result);
+});
+
+// update availability of service
+app.patch("/services/availability/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedDoc = {
+    $set: {
+      isAvailable: req.body.isAvailable,
+    },
+  };
+  const result = await servicesCollections.updateOne(
+    { _id: new ObjectId(id) },
+    updatedDoc,
+  );
   res.send(result);
 });
 
