@@ -80,7 +80,13 @@ app.patch("/users/update-role/:id", async (req, res) => {
 
 // get all services
 app.get("/all-services", async (req, res) => {
-  const result = await servicesCollections.find({}).toArray();
+  const query = {};
+  if (req.query) {
+    if (req.query.approvalStatus) {
+      query.approvalStatus = req.query.approvalStatus;
+    }
+  }
+  const result = await servicesCollections.find(query).toArray();
   res.send(result);
 });
 
@@ -152,6 +158,20 @@ app.put("/service/edit/:id", async (req, res) => {
 app.delete("/service/delete/:id", async (req, res) => {
   const { id } = req.params;
   const result = await servicesCollections.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------EVERYONE CAN ACCESS-------------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------------------------
+
+// get all the services which are available and approved
+app.get("/services/available-approved", async (req, res) => {
+  const criteria = {
+    isAvailable: true,
+    approvalStatus: "approved",
+  };
+  const result = await servicesCollections.find(criteria).toArray();
   res.send(result);
 });
 
