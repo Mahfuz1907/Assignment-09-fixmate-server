@@ -78,7 +78,7 @@ app.patch("/users/update-role/:id", async (req, res) => {
   res.send(result);
 });
 
-// get all services
+// get all services by approval status
 app.get("/all-services", async (req, res) => {
   const query = {};
   if (req.query) {
@@ -165,13 +165,37 @@ app.delete("/service/delete/:id", async (req, res) => {
 //-------------------------------------------------------------------EVERYONE CAN ACCESS-------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
 
-// get all the services which are available and approved
+// get all the services which are available and approved by query
 app.get("/services/available-approved", async (req, res) => {
-  const criteria = {
+  const query = {
     isAvailable: true,
     approvalStatus: "approved",
   };
-  const result = await servicesCollections.find(criteria).toArray();
+
+  if (req.query) {
+    if (req.query.category) {
+      query.category = req.query.category;
+    }
+    if (req.query.serviceMode) {
+      query.serviceMode = req.query.serviceMode;
+    }
+    if (req.query.search) {
+      query.$or = [
+        { title: { $regex: req.query.search, $options: "i" } },
+        { category: { $regex: req.query.search, $options: "i" } },
+      ];
+    }
+  }
+
+  let sortObj = {};
+  if (req.query.sortBy) {
+    const field = req.query.sortBy;
+    const order = req.query.sortOrder === "desc" ? -1 : 1;
+    sortObj[field] = order;
+  } else {
+    sortObj = { createdAt: -1 };
+  }
+  const result = await servicesCollections.find(query).sort(sortObj).toArray();
   res.send(result);
 });
 
@@ -180,7 +204,7 @@ app.get("/services/available-approved", async (req, res) => {
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`App listening on port ${port}`);
 });
 
 export default app;
