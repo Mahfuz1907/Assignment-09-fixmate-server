@@ -78,6 +78,27 @@ app.patch("/users/update-role/:id", async (req, res) => {
   res.send(result);
 });
 
+// get all services
+app.get("/all-services", async (req, res) => {
+  const result = await servicesCollections.find({}).toArray();
+  res.send(result);
+});
+
+// update service status
+app.patch("/services/update-status/:id", async (req, res) => {
+  const { id } = req.params;
+  const updatedDoc = {
+    $set: {
+      approvalStatus: req.body.approvalStatus,
+    },
+  };
+  const result = await servicesCollections.updateOne(
+    { _id: new ObjectId(id) },
+    updatedDoc,
+  );
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------ONLY TECHNICIAN CAN ACCESS----------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
@@ -141,3 +162,5 @@ app.delete("/service/delete/:id", async (req, res) => {
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
+
+export default app;
