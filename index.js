@@ -206,6 +206,22 @@ app.get("/service/:id", async (req, res) => {
   res.send(result);
 });
 
+// get featured services
+app.get("/featured-service", async (req, res) => {
+  const query = {
+    isAvailable: true,
+    approvalStatus: "approved",
+  };
+  let sortObj = { createdAt: -1 };
+
+  const result = await servicesCollections
+    .find(query)
+    .sort(sortObj)
+    .limit(6)
+    .toArray();
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------port listening----------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
