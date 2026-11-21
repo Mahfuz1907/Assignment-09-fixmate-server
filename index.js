@@ -40,6 +40,7 @@ const database = mongoClient.db("fixmate");
 
 const usersCollections = database.collection("user");
 const servicesCollections = database.collection("services");
+const bookingsCollections = database.collection("bookings");
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------middleware--------------------------------------------------------------
@@ -158,6 +159,26 @@ app.put("/service/edit/:id", async (req, res) => {
 app.delete("/service/delete/:id", async (req, res) => {
   const { id } = req.params;
   const result = await servicesCollections.deleteOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------ONLY CUSTOMER CAN ACCESS--------------------------------------------
+// --------------------------------------------------------------------------------------------------------------------------------------
+
+// add bookings
+app.post("/add-bookings", async (req, res) => {
+  const booking = req.body;
+  const result = await bookingsCollections.insertOne(booking);
+  res.send(result);
+});
+
+// get bookings for each customer
+app.get("/bookings/customer/:email", async (req, res) => {
+  const { email } = req.params;
+  const result = await bookingsCollections
+    .find({ customerEmail: email })
+    .toArray();
   res.send(result);
 });
 
