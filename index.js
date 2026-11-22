@@ -2,6 +2,7 @@ import express from "express";
 import "dotenv/config";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
+import { jwtVerify, createRemoteJWKSet } from "jose";
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 // ---------------------------------------------------------define express app and port--------------------------------------------------
@@ -47,6 +48,29 @@ const paymentsCollections = database.collection("payments");
 //---------------------------------------------------------------middleware--------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
 
+// verify token
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  console.log(token);
+
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+
+  const JWKS = createRemoteJWKSet(
+    new URL(`${process.env.FRONTEND_URL}/api/auth/jwks`),
+  );
+
+  const { payload } = await jwtVerify(token, JWKS);
+
+  next();
+};
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------home route--------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
@@ -60,13 +84,13 @@ app.get("/", (req, res) => {
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 // get all the users
-app.get("/users", async (req, res) => {
+app.get("/users", verifyToken, async (req, res) => {
   const result = await usersCollections.find({}).toArray();
   res.send(result);
 });
 
 // update user role
-app.patch("/users/update-role/:id", async (req, res) => {
+app.patch("/users/update-role/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const updatedDoc = {
     $set: {
@@ -81,7 +105,7 @@ app.patch("/users/update-role/:id", async (req, res) => {
 });
 
 // get all services by approval status
-app.get("/all-services", async (req, res) => {
+app.get("/all-services", verifyToken, async (req, res) => {
   const query = {};
   if (req.query) {
     if (req.query.approvalStatus) {
@@ -96,7 +120,7 @@ app.get("/all-services", async (req, res) => {
 });
 
 // update service status
-app.patch("/services/update-status/:id", async (req, res) => {
+app.patch("/services/update-status/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const updatedDoc = {
     $set: {
@@ -111,7 +135,7 @@ app.patch("/services/update-status/:id", async (req, res) => {
 });
 
 // get all bookings
-app.get("/bookings", async (req, res) => {
+app.get("/bookings", verifyToken, async (req, res) => {
   const result = await bookingsCollections
     .find({})
     .sort({ preferredDate: 1 })
@@ -120,7 +144,7 @@ app.get("/bookings", async (req, res) => {
 });
 
 // get all payments
-app.get("/all-payments", async (req, res) => {
+app.get("/all-payments", verifyToken, async (req, res) => {
   const payments = await paymentsCollections
     .find({})
     .sort({ paidAt: -1 })
@@ -151,14 +175,14 @@ app.get("/all-payments", async (req, res) => {
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 // add service
-app.post("/add-service", async (req, res) => {
+app.post("/add-service", verifyToken, async (req, res) => {
   const service = req.body;
   const result = await servicesCollections.insertOne(service);
   res.send(result);
 });
 
 // get services for each technician
-app.get("/services/technician/:email", async (req, res) => {
+app.get("/services/technician/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
   const result = await servicesCollections
     .find({ technicianEmail: email })
@@ -168,7 +192,7 @@ app.get("/services/technician/:email", async (req, res) => {
 });
 
 // update availability of service
-app.patch("/services/availability/:id", async (req, res) => {
+app.patch("/services/availability/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const updatedDoc = {
     $set: {
@@ -183,7 +207,7 @@ app.patch("/services/availability/:id", async (req, res) => {
 });
 
 // update service
-app.put("/service/edit/:id", async (req, res) => {
+app.put("/service/edit/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const updatedData = req.body;
   const updateDoc = {
@@ -197,14 +221,14 @@ app.put("/service/edit/:id", async (req, res) => {
 });
 
 // delete service
-app.delete("/service/delete/:id", async (req, res) => {
+app.delete("/service/delete/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const result = await servicesCollections.deleteOne({ _id: new ObjectId(id) });
   res.send(result);
 });
 
 // get bookings by each technician
-app.get("/bookings/technician/:email", async (req, res) => {
+app.get("/bookings/technician/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
   const query = {
     technicianEmail: email,
@@ -221,14 +245,14 @@ app.get("/bookings/technician/:email", async (req, res) => {
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 // add bookings
-app.post("/add-bookings", async (req, res) => {
+app.post("/add-bookings", verifyToken, async (req, res) => {
   const booking = req.body;
   const result = await bookingsCollections.insertOne(booking);
   res.send(result);
 });
 
 // get bookings for each customer
-app.get("/bookings/customer/:email", async (req, res) => {
+app.get("/bookings/customer/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
   const result = await bookingsCollections
     .find({ customerEmail: email })
@@ -237,7 +261,7 @@ app.get("/bookings/customer/:email", async (req, res) => {
 });
 
 // update booking status
-app.patch("/bookings/cancel/:id", async (req, res) => {
+app.patch("/bookings/cancel/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const updateDoc = {
     $set: {
@@ -252,7 +276,7 @@ app.patch("/bookings/cancel/:id", async (req, res) => {
 });
 
 // pay for the service
-app.patch("/api/bookings/:id/pay", async (req, res) => {
+app.patch("/api/bookings/:id/pay", verifyToken, async (req, res) => {
   const { id } = req.params;
   const { paymentStatus, transactionId, customerEmail, amountPaid } = req.body;
 
@@ -315,7 +339,7 @@ app.patch("/api/bookings/:id/pay", async (req, res) => {
 });
 
 // payment for each customer
-app.get("/payments/customer/:email", async (req, res) => {
+app.get("/payments/customer/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
   const result = await paymentsCollections
     .find({ customerEmail: email })
