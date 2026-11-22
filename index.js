@@ -182,6 +182,21 @@ app.get("/bookings/customer/:email", async (req, res) => {
   res.send(result);
 });
 
+// cancel bookings (update the status to cancel)
+app.patch("/bookings/cancel/:id", async (req, res) => {
+  const { id } = req.params;
+  const updateDoc = {
+    $set: {
+      status: req.body.status,
+    },
+  };
+  const result = await bookingsCollections.updateOne(
+    { _id: new ObjectId(id) },
+    updateDoc,
+  );
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------EVERYONE CAN ACCESS-------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
