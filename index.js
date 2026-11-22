@@ -106,6 +106,12 @@ app.patch("/services/update-status/:id", async (req, res) => {
   res.send(result);
 });
 
+// get all bookings
+app.get("/bookings", async (req, res) => {
+  const result = await bookingsCollections.find({}).toArray();
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------ONLY TECHNICIAN CAN ACCESS----------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
@@ -166,7 +172,6 @@ app.delete("/service/delete/:id", async (req, res) => {
 app.get("/bookings/technician/:email", async (req, res) => {
   const { email } = req.params;
   const query = {
-    status: "requested",
     technicianEmail: email,
   };
   const result = await bookingsCollections.find(query).toArray();
@@ -193,7 +198,7 @@ app.get("/bookings/customer/:email", async (req, res) => {
   res.send(result);
 });
 
-// cancel bookings (update the status to cancel)
+// update booking status
 app.patch("/bookings/cancel/:id", async (req, res) => {
   const { id } = req.params;
   const updateDoc = {
