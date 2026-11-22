@@ -41,6 +41,7 @@ const database = mongoClient.db("fixmate");
 const usersCollections = database.collection("user");
 const servicesCollections = database.collection("services");
 const bookingsCollections = database.collection("bookings");
+const paymentsCollections = database.collection("payments");
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------middleware--------------------------------------------------------------
@@ -211,6 +212,69 @@ app.patch("/bookings/cancel/:id", async (req, res) => {
     updateDoc,
   );
   res.send(result);
+});
+
+// pay for the service
+app.patch("/api/bookings/:id/pay", async (req, res) => {
+  const { id } = req.params;
+  const { paymentStatus, transactionId, customerEmail, amountPaid } = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid booking ID" });
+  }
+
+  const paidAt = new Date();
+  const finalStatus = paymentStatus || "paid";
+  const finalAmount = amountPaid ?? 0;
+
+  const updatedBooking = await bookingsCollections.findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        paymentStatus: finalStatus,
+        transactionId: transactionId || "",
+        customerEmail: customerEmail || "",
+        amountPaid: finalAmount,
+        paidAt,
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!updatedBooking) {
+    return res.status(404).json({ message: "Booking not found" });
+  }
+
+  if (transactionId) {
+    await paymentsCollections.updateOne(
+      { transactionId },
+      {
+        $setOnInsert: {
+          bookingId: new ObjectId(id),
+          transactionId,
+          customerEmail: customerEmail || "",
+          amountPaid: finalAmount,
+          status: finalStatus,
+          paidAt,
+        },
+      },
+      { upsert: true },
+    );
+  } else {
+    await paymentsCollections.insertOne({
+      bookingId: new ObjectId(id),
+      transactionId: "",
+      customerEmail: customerEmail || "",
+      amountPaid: finalAmount,
+      status: finalStatus,
+      paidAt,
+    });
+  }
+
+  return res.status(200).json({
+    message: "Booking payment updated",
+    booking: updatedBooking,
+  });
 });
 
 // --------------------------------------------------------------------------------------------------------------------------------------
