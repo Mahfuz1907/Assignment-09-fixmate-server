@@ -88,7 +88,10 @@ app.get("/all-services", async (req, res) => {
       query.approvalStatus = req.query.approvalStatus;
     }
   }
-  const result = await servicesCollections.find(query).toArray();
+  const result = await servicesCollections
+    .find(query)
+    .sort({ createdAt: -1 })
+    .toArray();
   res.send(result);
 });
 
@@ -109,8 +112,38 @@ app.patch("/services/update-status/:id", async (req, res) => {
 
 // get all bookings
 app.get("/bookings", async (req, res) => {
-  const result = await bookingsCollections.find({}).toArray();
+  const result = await bookingsCollections
+    .find({})
+    .sort({ preferredDate: 1 })
+    .toArray();
   res.send(result);
+});
+
+// get all payments
+app.get("/all-payments", async (req, res) => {
+  const payments = await paymentsCollections
+    .find({})
+    .sort({ paidAt: -1 })
+    .toArray();
+
+  const revenueResult = await paymentsCollections
+    .aggregate([
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$amountPaid" },
+        },
+      },
+    ])
+    .toArray();
+
+  const totalRevenue = revenueResult[0]?.totalRevenue || 0;
+
+  res.send({
+    totalRevenue,
+    totalCount: payments.length,
+    payments,
+  });
 });
 
 // --------------------------------------------------------------------------------------------------------------------------------------
@@ -129,6 +162,7 @@ app.get("/services/technician/:email", async (req, res) => {
   const { email } = req.params;
   const result = await servicesCollections
     .find({ technicianEmail: email })
+    .sort({ createdAt: -1 })
     .toArray();
   res.send(result);
 });
@@ -175,7 +209,10 @@ app.get("/bookings/technician/:email", async (req, res) => {
   const query = {
     technicianEmail: email,
   };
-  const result = await bookingsCollections.find(query).toArray();
+  const result = await bookingsCollections
+    .find(query)
+    .sort({ preferredDate: -1 })
+    .toArray();
   res.send(result);
 });
 
@@ -275,6 +312,16 @@ app.patch("/api/bookings/:id/pay", async (req, res) => {
     message: "Booking payment updated",
     booking: updatedBooking,
   });
+});
+
+// payment for each customer
+app.get("/payments/customer/:email", async (req, res) => {
+  const { email } = req.params;
+  const result = await paymentsCollections
+    .find({ customerEmail: email })
+    .sort({ paidAt: -1 })
+    .toArray();
+  res.send(result);
 });
 
 // --------------------------------------------------------------------------------------------------------------------------------------
