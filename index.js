@@ -162,6 +162,17 @@ app.delete("/service/delete/:id", async (req, res) => {
   res.send(result);
 });
 
+// get bookings by each technician
+app.get("/bookings/technician/:email", async (req, res) => {
+  const { email } = req.params;
+  const query = {
+    status: "requested",
+    technicianEmail: email,
+  };
+  const result = await bookingsCollections.find(query).toArray();
+  res.send(result);
+});
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------ONLY CUSTOMER CAN ACCESS--------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
