@@ -56,7 +56,6 @@ const verifyToken = async (req, res, next) => {
   }
 
   const token = authHeader.split(" ")[1];
-  console.log(token);
 
   if (!token) {
     return res.status(401).send({ message: "Unauthorized access" });
@@ -67,7 +66,36 @@ const verifyToken = async (req, res, next) => {
   );
 
   const { payload } = await jwtVerify(token, JWKS);
+  req.user = payload;
+  console.log(payload);
 
+  next();
+};
+
+// verify admin
+const verifyAdmin = async (req, res, next) => {
+  if (req.user.role !== "admin") {
+    res.status(403).send({ message: "Forbidden" });
+    return;
+  }
+  next();
+};
+
+// verify technician
+const verifyTechnician = async (req, res, next) => {
+  if (req.user.role !== "technician") {
+    res.status(403).send({ message: "Forbidden" });
+    return;
+  }
+  next();
+};
+
+// verify customer
+const verifyCustomer = async (req, res, next) => {
+  if (req.user.role !== "customer") {
+    res.status(403).send({ message: "Forbidden" });
+    return;
+  }
   next();
 };
 
@@ -84,28 +112,33 @@ app.get("/", (req, res) => {
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 // get all the users
-app.get("/users", verifyToken, async (req, res) => {
+app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
   const result = await usersCollections.find({}).toArray();
   res.send(result);
 });
 
 // update user role
-app.patch("/users/update-role/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const updatedDoc = {
-    $set: {
-      role: req.body.role,
-    },
-  };
-  const result = await usersCollections.updateOne(
-    { _id: new ObjectId(id) },
-    updatedDoc,
-  );
-  res.send(result);
-});
+app.patch(
+  "/users/update-role/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    const updatedDoc = {
+      $set: {
+        role: req.body.role,
+      },
+    };
+    const result = await usersCollections.updateOne(
+      { _id: new ObjectId(id) },
+      updatedDoc,
+    );
+    res.send(result);
+  },
+);
 
 // get all services by approval status
-app.get("/all-services", verifyToken, async (req, res) => {
+app.get("/all-services", verifyToken, verifyAdmin, async (req, res) => {
   const query = {};
   if (req.query) {
     if (req.query.approvalStatus) {
@@ -120,22 +153,27 @@ app.get("/all-services", verifyToken, async (req, res) => {
 });
 
 // update service status
-app.patch("/services/update-status/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const updatedDoc = {
-    $set: {
-      approvalStatus: req.body.approvalStatus,
-    },
-  };
-  const result = await servicesCollections.updateOne(
-    { _id: new ObjectId(id) },
-    updatedDoc,
-  );
-  res.send(result);
-});
+app.patch(
+  "/services/update-status/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    const updatedDoc = {
+      $set: {
+        approvalStatus: req.body.approvalStatus,
+      },
+    };
+    const result = await servicesCollections.updateOne(
+      { _id: new ObjectId(id) },
+      updatedDoc,
+    );
+    res.send(result);
+  },
+);
 
 // get all bookings
-app.get("/bookings", verifyToken, async (req, res) => {
+app.get("/bookings", verifyToken, verifyAdmin, async (req, res) => {
   const result = await bookingsCollections
     .find({})
     .sort({ preferredDate: 1 })
@@ -144,7 +182,7 @@ app.get("/bookings", verifyToken, async (req, res) => {
 });
 
 // get all payments
-app.get("/all-payments", verifyToken, async (req, res) => {
+app.get("/all-payments", verifyToken, verifyAdmin, async (req, res) => {
   const payments = await paymentsCollections
     .find({})
     .sort({ paidAt: -1 })
@@ -175,108 +213,211 @@ app.get("/all-payments", verifyToken, async (req, res) => {
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 // add service
-app.post("/add-service", verifyToken, async (req, res) => {
+app.post("/add-service", verifyToken, verifyTechnician, async (req, res) => {
   const service = req.body;
-  const result = await servicesCollections.insertOne(service);
+  const newService = {
+    ...service,
+    technicianName: req.user.name,
+    technicianEmail: req.user.email,
+  };
+  const result = await servicesCollections.insertOne(newService);
   res.send(result);
 });
 
 // get services for each technician
-app.get("/services/technician/:email", verifyToken, async (req, res) => {
-  const { email } = req.params;
-  const result = await servicesCollections
-    .find({ technicianEmail: email })
-    .sort({ createdAt: -1 })
-    .toArray();
-  res.send(result);
-});
+app.get(
+  "/services/technician/:email",
+  verifyToken,
+  verifyTechnician,
+  async (req, res) => {
+    const { email } = req.params;
+
+    if (req.user?.email !== email) {
+      return res.status(403).send({
+        message: "Forbidden: You can only view your own services",
+      });
+    }
+
+    const result = await servicesCollections
+      .find({ technicianEmail: email })
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.send(result);
+  },
+);
 
 // update availability of service
-app.patch("/services/availability/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const updatedDoc = {
-    $set: {
-      isAvailable: req.body.isAvailable,
-    },
-  };
-  const result = await servicesCollections.updateOne(
-    { _id: new ObjectId(id) },
-    updatedDoc,
-  );
-  res.send(result);
-});
+app.patch(
+  "/services/availability/:id",
+  verifyToken,
+  verifyTechnician,
+  async (req, res) => {
+    const { id } = req.params;
+    const filter = { _id: new ObjectId(id) };
+
+    const service = await servicesCollections.findOne(filter);
+
+    if (req.user?.email !== service.technicianEmail) {
+      return res.status(403).send({
+        message: "Forbidden: You can only update your own service availability",
+      });
+    }
+
+    const updatedDoc = {
+      $set: {
+        isAvailable: req.body.isAvailable,
+      },
+    };
+    const result = await servicesCollections.updateOne(filter, updatedDoc);
+    res.send(result);
+  },
+);
 
 // update service
-app.put("/service/edit/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const updatedData = req.body;
-  const updateDoc = {
-    $set: updatedData,
-  };
-  const result = await servicesCollections.updateOne(
-    { _id: new ObjectId(id) },
-    updateDoc,
-  );
-  res.send(result);
-});
+app.put(
+  "/service/edit/:id",
+  verifyToken,
+  verifyTechnician,
+  async (req, res) => {
+    const { id } = req.params;
+    const filter = { _id: new ObjectId(id) };
+    const service = await servicesCollections.findOne(filter);
+
+    if (req.user?.email !== service.technicianEmail) {
+      return res.status(403).send({
+        message: "Forbidden: You can only edit your own service",
+      });
+    }
+
+    const { _id, technicianEmail, ...safeUpdates } = req.body;
+
+    const updateDoc = {
+      $set: {
+        ...safeUpdates,
+        updatedAt: new Date(),
+      },
+    };
+
+    const result = await servicesCollections.updateOne(filter, updateDoc);
+    res.send(result);
+  },
+);
 
 // delete service
-app.delete("/service/delete/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const result = await servicesCollections.deleteOne({ _id: new ObjectId(id) });
-  res.send(result);
-});
+app.delete(
+  "/service/delete/:id",
+  verifyToken,
+  verifyTechnician,
+  async (req, res) => {
+    const { id } = req.params;
+    const filter = { _id: new ObjectId(id) };
+    const service = await servicesCollections.findOne(filter);
+
+    if (req.user?.email !== service.technicianEmail) {
+      return res.status(403).send({
+        message: "Forbidden: You can only delete your own service",
+      });
+    }
+
+    const result = await servicesCollections.deleteOne(filter);
+    res.send(result);
+  },
+);
 
 // get bookings by each technician
-app.get("/bookings/technician/:email", verifyToken, async (req, res) => {
-  const { email } = req.params;
-  const query = {
-    technicianEmail: email,
-  };
-  const result = await bookingsCollections
-    .find(query)
-    .sort({ preferredDate: -1 })
-    .toArray();
-  res.send(result);
-});
+app.get(
+  "/bookings/technician/:email",
+  verifyToken,
+  verifyTechnician,
+  async (req, res) => {
+    const { email } = req.params;
+    if (req.user?.email !== email) {
+      return res.status(403).send({
+        message: "Forbidden: You can only view your own assigned bookings",
+      });
+    }
+    const query = {
+      technicianEmail: email,
+    };
+    const result = await bookingsCollections
+      .find(query)
+      .sort({ preferredDate: -1 })
+      .toArray();
+    res.send(result);
+  },
+);
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------ONLY CUSTOMER CAN ACCESS--------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
 
 // add bookings
-app.post("/add-bookings", verifyToken, async (req, res) => {
+app.post("/add-bookings", verifyToken, verifyCustomer, async (req, res) => {
   const booking = req.body;
-  const result = await bookingsCollections.insertOne(booking);
+  const newBooking = {
+    ...booking,
+    customerName: req.user.name,
+    customerEmail: req.user.email,
+  };
+  const result = await bookingsCollections.insertOne(newBooking);
   res.send(result);
 });
 
 // get bookings for each customer
-app.get("/bookings/customer/:email", verifyToken, async (req, res) => {
-  const { email } = req.params;
-  const result = await bookingsCollections
-    .find({ customerEmail: email })
-    .toArray();
-  res.send(result);
-});
+app.get(
+  "/bookings/customer/:email",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    const { email } = req.params;
+
+    if (req.user?.email !== email) {
+      return res.status(403).send({
+        message: "Forbidden: You can only view your own bookings",
+      });
+    }
+
+    const result = await bookingsCollections
+      .find({ customerEmail: email })
+      .sort({ _id: -1 })
+      .toArray();
+    res.send(result);
+  },
+);
 
 // update booking status
-app.patch("/bookings/cancel/:id", verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const updateDoc = {
-    $set: {
-      status: req.body.status,
-    },
-  };
-  const result = await bookingsCollections.updateOne(
-    { _id: new ObjectId(id) },
-    updateDoc,
-  );
-  res.send(result);
-});
+app.patch(
+  "/bookings/cancel/:id",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    const { id } = req.params;
+    const filter = { _id: new ObjectId(id) };
+
+    const booking = await bookingsCollections.findOne(filter);
+
+    if (!booking) {
+      return res.status(404).send({ message: "Booking not found" });
+    }
+
+    if (req.user?.email !== booking.customerEmail) {
+      return res.status(403).send({
+        message: "Forbidden: You can only cancel your own bookings",
+      });
+    }
+
+    const updateDoc = {
+      $set: {
+        status: req.body.status,
+      },
+    };
+    const result = await bookingsCollections.updateOne(filter, updateDoc);
+    res.send(result);
+  },
+);
 
 // pay for the service
-app.patch("/api/bookings/:id/pay", verifyToken, async (req, res) => {
+app.patch("/api/bookings/:id/pay", async (req, res) => {
   const { id } = req.params;
   const { paymentStatus, transactionId, customerEmail, amountPaid } = req.body;
 
@@ -339,14 +480,24 @@ app.patch("/api/bookings/:id/pay", verifyToken, async (req, res) => {
 });
 
 // payment for each customer
-app.get("/payments/customer/:email", verifyToken, async (req, res) => {
-  const { email } = req.params;
-  const result = await paymentsCollections
-    .find({ customerEmail: email })
-    .sort({ paidAt: -1 })
-    .toArray();
-  res.send(result);
-});
+app.get(
+  "/payments/customer/:email",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    const { email } = req.params;
+    if (req.user?.email !== email) {
+      return res.status(403).send({
+        message: "Forbidden: You can only view your own payment history",
+      });
+    }
+    const result = await paymentsCollections
+      .find({ customerEmail: email })
+      .sort({ paidAt: -1 })
+      .toArray();
+    res.send(result);
+  },
+);
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------EVERYONE CAN ACCESS-------------------------------------------------
