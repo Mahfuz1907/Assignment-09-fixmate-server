@@ -347,6 +347,37 @@ app.get(
   },
 );
 
+// update booking status
+app.patch(
+  "/bookings/cancel/:id",
+  verifyToken,
+  verifyTechnician,
+  async (req, res) => {
+    const { id } = req.params;
+    const filter = { _id: new ObjectId(id) };
+
+    const booking = await bookingsCollections.findOne(filter);
+
+    if (!booking) {
+      return res.status(404).send({ message: "Booking not found" });
+    }
+
+    if (req.user?.email !== booking.technicianEmail) {
+      return res.status(403).send({
+        message: "Forbidden: You can only cancel your own bookings",
+      });
+    }
+
+    const updateDoc = {
+      $set: {
+        status: req.body.status,
+      },
+    };
+    const result = await bookingsCollections.updateOne(filter, updateDoc);
+    res.send(result);
+  },
+);
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------ONLY CUSTOMER CAN ACCESS--------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------
@@ -381,37 +412,6 @@ app.get(
       .find({ customerEmail: email })
       .sort({ _id: -1 })
       .toArray();
-    res.send(result);
-  },
-);
-
-// update booking status
-app.patch(
-  "/bookings/cancel/:id",
-  verifyToken,
-  verifyCustomer,
-  async (req, res) => {
-    const { id } = req.params;
-    const filter = { _id: new ObjectId(id) };
-
-    const booking = await bookingsCollections.findOne(filter);
-
-    if (!booking) {
-      return res.status(404).send({ message: "Booking not found" });
-    }
-
-    if (req.user?.email !== booking.customerEmail) {
-      return res.status(403).send({
-        message: "Forbidden: You can only cancel your own bookings",
-      });
-    }
-
-    const updateDoc = {
-      $set: {
-        status: req.body.status,
-      },
-    };
-    const result = await bookingsCollections.updateOne(filter, updateDoc);
     res.send(result);
   },
 );
